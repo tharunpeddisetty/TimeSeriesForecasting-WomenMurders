@@ -1,0 +1,61 @@
+---
+title: "BUAN6357_HomeWork-2_Peddisetty"
+author: "Tharun Peddisetty"
+date: "9/24/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+pacman::p_load(fpp3, patchwork, purrr,fpp2,knitr, forecast, ggplot2, rmarkdown)
+theme_set(theme_classic())
+```
+
+```{r}
+data <- as_tsibble(wmurders)
+data %>% gg_tsdisplay(value, plot_type = 'partial') + xlab("Years") + ylab("No. Of Murders")
+data %>% features(value, unitroot_kpss)
+```
+## 1) Choice of Model
+The KPSS test reveals that the series is not stationary with a p-value < 0.05. Therefore, we have considered first difference of the series. After studying the below model plots, there seems to be a sinusoidal pattern in both acf and pacf plots. Therefore both Auto Regressive and Moving Average models are possible. 
+From the plots below we can decide on p and q values:
+For AR model: p=2 (from pacf plot)
+For MA model: q=2 (from acf plot)
+
+Since the AR and MA models choices are equally likely candidate models, I'm choosing MA as per the specification. 
+Final Model choice: ARIMA (0,1,2)
+```{r}
+data%>% mutate(diff = difference(value)) %>%
+  gg_tsdisplay(diff, plot_type = 'partial')
+```
+
+## 2) Should we include a constant ?
+I don't think a constant needs to be added to the final model because the average of the first difference of the series is constant around zero. Adding a constant will shift the mean upward or downward depending on the sign of the constant.
+
+## 3) Examining ARIMA(0,1,2) model 
+The model is descent enough to be considered because the residual plot looks almost normal with mean =0 signifying the residual series has white noise. Furthermore, the Ljung-Box test reveals that the residuals are uncorrelated. Satisfying the above mentioned criteria means that there is no more information left in the first difference series to be extracted. However, it is also a good idea to check the AR model before coming to a final conclusion if this model is satisfactory or not.
+```{r}
+fit1 <- data %>% model(arima = ARIMA(value ~ pdq(0, 1, 2))) %>% report
+gg_tsresiduals(fit1)
+
+#Checking for autocorrelation using Ljung-Box Test
+augment(fit1) %>% features(.resid, ljung_box, lag=2, dof =2)
+```
+
+## 4) Forecasting 3 times ahead
+
+```{r}
+fit1 %>% forecast(h = 3) 
+fit1 %>% forecast(h = 3) %>% autoplot(data)
+```
+
+## 5) ARIMA Model Choice
+No, ARIMA doesn't give the same model as I chose. It gives ARIMA(0,1,0) as the best model. However, I believe that my model is better than this one because the information criterion AICc value of ARIMA(0,1,2) model is lesser than ARIMA(0,1,0). 
+[AICc=-12.95 < AICc=-11.38]
+
+```{r}
+fit2 <-data %>% model(ARIMA(value ~ pdq(d=1))) %>% report()
+gg_tsresiduals(fit2)
+fit2 %>% forecast(h = 3) %>% autoplot(data)
+```
